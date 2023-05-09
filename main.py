@@ -49,8 +49,8 @@ def main():
     args = parser.parse_args()
 
     logger.info("Processing args...")
-    node_number: int = args.node_number
-    relay_number: int = args.relay_number
+    node_number: int = int(args.node_number)
+    relay_number: int = int(args.relay_number)
     client_request: str = args.client_request
     server_response: str = args.server_response
     logger.info("Done processing args...")
@@ -80,6 +80,7 @@ def execution(node_number, relay_number, client_request, server_response):
                 node_id,
                 port_used,
                 starting_port + node_id,
+                node_number,
                 client_request,
                 relay_number
             ))
@@ -88,13 +89,15 @@ def execution(node_number, relay_number, client_request, server_response):
                 node_id,
                 port_used,
                 starting_port + node_id,
+                node_number,
                 server_response
             ))
         else:
             process = NodeProcess(target=node.main, args=(
                 node_id,
                 port_used,
-                starting_port + node_id
+                starting_port + node_id,
+                node_number
             ))
         process.start()
         list_nodes.append(process)
