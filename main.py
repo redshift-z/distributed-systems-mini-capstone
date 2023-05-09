@@ -80,7 +80,8 @@ def execution(node_number, relay_number, client_request, server_response):
                 node_id,
                 port_used,
                 starting_port + node_id,
-                client_request
+                client_request,
+                relay_number
             ))
         elif is_server:
             process = NodeProcess(target=node.main, args=(
