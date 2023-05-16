@@ -45,7 +45,7 @@ class UdpSocket(NodeSocket):
         super(UdpSocket, self).__init__(socket.SOCK_DGRAM, port)
 
     def listen(self):
-        input_value_byte, address = self.sc.recvfrom(1024)
+        input_value_byte, address = self.sc.recvfrom(2048)
         return input_value_byte.decode("UTF-8"), address
 
     @staticmethod
