@@ -11,6 +11,8 @@ import server_node
 import relay_node
 import client
 
+basic_logging = logging.INFO
+node_logging = logging.DEBUG
 list_nodes = []
 client_port = 9998
 server_port = 9999
@@ -18,7 +20,7 @@ node_starting_port = 10000
 
 logging.basicConfig(format='%(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.INFO)
+                    level=basic_logging)
 logger = logging.getLogger(__name__)
 
 class NodeProcess(multiprocessing.Process):
@@ -37,26 +39,27 @@ def reload_logging_config_node(filename):
                         datefmt='%H:%M:%S',
                         filename=f"logs/{filename}",
                         filemode='w',
-                        level=logging.DEBUG)
+                        level=node_logging)
 
 def handle_exception(exc_type, exc_value, exc_traceback):
     logger.error(f"Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 def main():
-    parser = ArgumentParser()
-    parser.add_argument("-N", type=str, dest="node_number",
-                        help=" ")
+    # parser = ArgumentParser()
+    # parser.add_argument("-N", type=str, dest="node_number",
+    #                     help=" ")
     # Relay number akan diset di client.py
     # parser.add_argument("-R", type=str, dest="relay_number",
     #                     help=" ")
     # Mungkin server response hardcoded aja
     # parser.add_argument("-S", type=str, dest="server_response",
     #                     help=" ")
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    logger.info("Processing args...")
-    node_number: int = int(args.node_number)
-    logger.info("Done processing args...")
+    # logger.info("Processing args...")
+    # node_number: int = int(args.node_number)
+    # logger.info("Done processing args...")
+    node_number = int(input("Node_number: "))
     execution(node_number)
 
 
@@ -86,8 +89,6 @@ def execution(node_number):
     logger.info("Start running relay nodes...")
     node_and_port_dict = dict()
     for node_id in range(node_number):
-        file_name_prefix = f"Relay {node_id}"
-        reload_logging_config_node(f"{file_name_prefix}.txt")
         this_node_port = node_starting_port + node_id
         process = NodeProcess(target=relay_node.main, args=(
             node_id,
