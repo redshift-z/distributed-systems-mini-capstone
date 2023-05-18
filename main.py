@@ -71,7 +71,6 @@ def execution(node_number):
     logger.info("The main program is running...")
     logger.info(f"Creating server instance at port {server_port}...")
     logger.info("Start running server nodes...")
-    #reload_logging_config_node(f"Server.txt")
     process = NodeProcess(target=server_node.main, args=(
         server_port,
         node_number

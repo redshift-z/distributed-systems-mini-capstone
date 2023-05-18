@@ -78,7 +78,6 @@ class ClientNode(Node):
                 data = json.loads(decrypted_data)["data"]
 
             logging.info(f"Storing received session key for port {random_node_ports[i]}...")
-            # inbound_header = TorHeader(**inbound_message["tor_header"])
             sk = decrypt_with_rsa(private_key, data["sk"])
             new_circuit = Circuit(i, sk)
             new_circuit.upstream_port = random_node_ports[i]
