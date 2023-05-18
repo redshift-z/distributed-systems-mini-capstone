@@ -21,8 +21,11 @@ class ClientNode(Node):
 
         logging.info(f"Building a circuit with {circuit_len} nodes")
         self.build_circuit(circuit_len)
+        logging.info("Circuit built successfully")
 
         # TODO: Web Request
+        logging.info("Starting procedure to send request message")
+        self.send_request(str(input("Enter message to send: ")))
 
     def build_circuit(self, circuit_len: int):
         logging.info(f"Choosing {circuit_len} random node(s)...")
@@ -85,7 +88,29 @@ class ClientNode(Node):
             for circuit in self.circuit_list:
                 debugstr += f"{str(circuit)}, upstream_port: {circuit.upstream_port}\n"
             logging.debug(f"\n{debugstr}")
+    
+    def send_request(self, request_msg: str):
 
+        #Encrypt message
+        logging.info("Start encrypting request message")
+        message = dict()
+        message["tor_header"] = TorHeader(0, "RELAY_FORWARD").__dict__
+        message["data"] = {"message": request_msg}
+        message["target_port"] = 9999
+        logging.info(f"Create data:\n{message}")
+        for circuit in self.circuit_list[::-1]:
+            logging.info(f"Encrypting message with session key from relay node number {circuit.circuit_id}")
+            outbound_message = json.dumps(message)
+            encrypted_message = encrypt_with_aes(circuit.sk, outbound_message)
+            message["tor_header"] = TorHeader(circuit.circuit_id, "RELAY_FORWARD").__dict__
+            message["data"] = encrypted_message
+            message["target_port"] = circuit.upstream_port
+
+        #Sending message
+        logging.info("Sending message...")
+        message["sender_port"] = self.my_port
+        outbound_message = json.dumps(message)
+        self.sending_procedure(outbound_message, self.circuit_list[0].upstream_port)
 
 def thread_exception_handler(args):
     logging.error(f"Uncaught exception", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))

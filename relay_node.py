@@ -32,6 +32,8 @@ class RelayNode(Node):
                 self.extend(header, message["data"])
             elif cmd in ["CREATED", "EXTENDED"]:
                 self.cr_or_ext(header, message["data"])
+            elif cmd == "RELAY_FORWARD":
+                self.relay_forward(header, message["data"])
             else:
                 logging.debug(f"Received unknown command {cmd}")
 
@@ -100,6 +102,29 @@ class RelayNode(Node):
 
         logging.info(f"Forwarding message to port {circuit.downstream_port}")
         self.tor_send(circuit.circuit_id, "EXTENDED", encrypted_message, circuit.downstream_port)
+    
+    def relay_forward(self, tor_header: TorHeader, data: str):
+        logging.info("Received relay forward command")
+        logging.info("Decrypting message")
+        circuit = self.circuit_dict[tor_header.circuit_id]
+        message = ""
+        #if (isinstance(data, str)):
+        message = decrypt_with_aes(circuit.sk, data)
+        logging.info(f"Decrypted message: {message}")
+
+        logging.info("Processing data...")
+        message = json.loads(message)
+        inbound_tor_header = TorHeader(**message["tor_header"])
+        extracted_data = message["data"]
+        target_port = message["target_port"]
+
+        logging.info(f"Relaying message to next target port {target_port}")
+        self.tor_send(
+            inbound_tor_header.circuit_id,
+            inbound_tor_header.cmd,
+            extracted_data,
+            target_port
+        )
 
     def tor_send(self, circuit_id: int, cmd: str, data, target_port: int):
         message = dict()
