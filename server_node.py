@@ -1,6 +1,7 @@
 import json
 import logging
 import threading
+from data.header import TorHeader
 from pprint import pformat
 from node import Node
 
@@ -13,11 +14,24 @@ class ServerNode(Node):
         logging.info("Listening for request...")
         inbound_message_json = self.listen_procedure()
         inbound_message = json.loads(inbound_message_json)
+        header = TorHeader(**inbound_message["tor_header"])
         data = inbound_message["data"]
-        logging.info(f"Request message: {pformat(data)}")
+        logging.info(f"Request: {pformat(data)}")
+        self.send_response(header, data["message"], inbound_message["sender_port"])
     
-    def send_response(self):
-        pass
+    def send_response(self, tor_header: TorHeader, request_message: str, sender_port: int):
+        response_message = request_message + " accepted"
+        logging.info(f"Sending response message to port {sender_port}...")
+        outbound_data = {"message": response_message}
+        self.tor_send(tor_header.circuit_id, "RELAY_BACKWARD", outbound_data, sender_port)
+    
+    def tor_send(self, circuit_id: int, cmd: str, data, target_port: int):
+        message = dict()
+        message["tor_header"] = TorHeader(circuit_id, cmd).__dict__
+        message["data"] = data
+        message["sender_port"] = self.my_port
+        outbound_message = json.dumps(message)
+        self.sending_procedure(outbound_message, target_port)
 
 
 def thread_exception_handler(args):

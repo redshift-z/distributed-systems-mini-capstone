@@ -27,6 +27,12 @@ class ClientNode(Node):
         logging.info("Starting procedure to send request message")
         self.send_request(str(input("Enter message to send: ")))
 
+        logging.info("Listening for response...")
+        inbound_message_json = self.listen_procedure()
+        inbound_message = json.loads(inbound_message_json)
+        data = inbound_message["data"]
+        self.handle_response(data)
+
     def build_circuit(self, circuit_len: int):
         logging.info(f"Choosing {circuit_len} random node(s)...")
         random_node_id_list = random.sample(self.node_and_port_dict.keys(), circuit_len)
@@ -93,7 +99,7 @@ class ClientNode(Node):
         #Encrypt message
         logging.info("Start encrypting request message")
         message = dict()
-        message["tor_header"] = TorHeader(0, "RELAY_FORWARD").__dict__
+        message["tor_header"] = TorHeader(len(self.circuit_list), "RELAY_FORWARD").__dict__
         message["data"] = {"message": request_msg}
         message["target_port"] = 9999
         logging.info(f"Create data:\n{message}")
@@ -110,6 +116,14 @@ class ClientNode(Node):
         message["sender_port"] = self.my_port
         outbound_message = json.dumps(message)
         self.sending_procedure(outbound_message, self.circuit_list[0].upstream_port)
+    
+    def handle_response(self, response: str):
+        logging.info("Peeling encryption layer...")
+        for each_circuit in self.circuit_list:
+            logging.debug(f"data: {response}")
+            decrypted_data = decrypt_with_aes(each_circuit.sk, response)
+            logging.debug(f"decrypted data: {decrypted_data}")
+            response = json.loads(decrypted_data)["data"]
 
 def thread_exception_handler(args):
     logging.error(f"Uncaught exception", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
