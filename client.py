@@ -71,8 +71,6 @@ class ClientNode(Node):
         frame7.pack(anchor="e", padx=20, pady=10, side="top")
 
     def start(self):
-        self.client_gui.mainloop()
-
         # logging.info(f"Available nodes for relay: {pformat(self.node_and_port_dict)}")
         # circuit_len = int(input("Total relay node to build a circuit (int): "))
 
@@ -88,6 +86,9 @@ class ClientNode(Node):
         # inbound_message = json.loads(inbound_message_json)
         # data = inbound_message["data"]
         # self.handle_response(data)
+
+        # Start the client gui
+        self.client_gui.mainloop()
 
     def build_circuit(self, circuit_len: int):
         logging.info(f"Choosing {circuit_len} random node(s)...")

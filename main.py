@@ -97,7 +97,7 @@ def main():
     node_number_var.trace_add("write", on_node_number_input_update)
     node_number_input = tk.Entry(gui_window, validate="key", validatecommand=(numeric_validation, "%P"), textvariable=node_number_var)
     node_number_input.pack(fill="x", padx="10")
-    tk.Label(gui_window, text="Recommended around 3-10 node").pack(anchor="w", padx="10")
+    tk.Label(gui_window, text="Recommended up to 10 node").pack(anchor="w", padx="10")
 
     tk.Label(gui_window, text="Enter number of relay nodes", height=2).pack(anchor="w", padx="10")
     node_number_in_relay_var = tk.StringVar()
