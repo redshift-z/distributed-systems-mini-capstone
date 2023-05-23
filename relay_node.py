@@ -27,14 +27,28 @@ class RelayNode(Node):
             cmd = header.cmd
 
             if cmd == "CREATE":
+                logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: CLIENT PUBLIC KEY\nSender port: {message['sender_port']}")
                 self.create(header, message["data"], message["sender_port"])
             elif cmd == "EXTEND":
+                logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: DATA encrypted with RELAY {self.my_id} SESSION KEY\nSender port: {message['sender_port']}")
                 self.extend(header, message["data"])
             elif cmd in ["CREATED", "EXTENDED"]:
+                if cmd == "CREATED":
+                    logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: RELAY SESSION KEY\nSender port: {message['sender_port']}")
+                else:
+                    logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: DATA ENCRYPTED with RELAY SESSION KEY\nSender port: {message['sender_port']}")
                 self.cr_or_ext(header, message["data"])
-            elif cmd == "RELAY_FORWARD":
+            elif cmd == "RELAY FORWARD":
+                logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: DATA encrypted with RELAY SESSION KEY\nSender port: {message['sender_port']}")
                 self.relay_forward(header, message["data"])
-            elif cmd == "RELAY_BACKWARD":
+            elif cmd == "RELAY BACKWARD":
+
+                # TODO: !!!
+                if type(message['data']) is dict:
+                    logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: {message['data']}\nSender port: {message['sender_port']}")
+                else:
+                    logging.info(f"INBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: DATA encrypted with RELAY SESSION KEY\nSender port: {message['sender_port']}")
+
                 self.relay_backward(header, message["data"])
             else:
                 logging.debug(f"Received unknown command {cmd}")
@@ -42,8 +56,8 @@ class RelayNode(Node):
     def create(self, tor_header: TorHeader, data: dict, sender_port: int):
         logging.info("Initializing new circuit...")
         # Initialize data
+        logging.info("Generating season key...")
         sk = generate_session_key()
-        logging.info(f"Session key: {sk}")
         gk = data["gk"]
 
         # Store circuit data
@@ -54,23 +68,32 @@ class RelayNode(Node):
         logging.info("Circuit initialized")
 
         # Create reply message and encrypt it
-        logging.info("Creating and encrypting reply message...")
+        logging.info("Creating reply message...")
         message = sk
-        logging.info(f"Message: {message}")
+        logging.info(f"Message: RELAY {self.my_id} SESSION KEY")
         encrypted_message = encrypt_with_rsa(gk, message)
-        logging.info(f"Encrypted_message: {encrypted_message}")
+        logging.info("Encrypting reply message with CLIENT PUBLIC KEY...")
 
         # Reply
-        logging.info(f"Sending relay created message to port {sender_port}...")
+        logging.info(f"Sending CREATED message to port {sender_port}...")
         outbound_data = {"sk": encrypted_message}
+        logging.info(f"OUTBOUND MESSAGE:\nTor header: {TorHeader(tor_header.circuit_id, 'CREATED').__dict__}\nData: SESSION KEY encrypted with CLIENT PUBLIC KEY\nSender port: {self.my_port}")
         self.tor_send(tor_header.circuit_id, "CREATED", outbound_data, sender_port)
 
     def extend(self, tor_header: TorHeader, data: str):
         logging.info("Received relay extend command")
-        logging.info("Decrypting message")
+        logging.info("Decrypting message...")
         circuit = self.circuit_dict[tor_header.circuit_id]
         message = decrypt_with_aes(circuit.sk, data)
-        logging.info(f"Decrypted message: {message}")
+        log_data = ""
+
+        # TODO: !!!
+        if type(message) is dict:
+            log_data = "DECRYPTED MESSAGE: CLIENT PUBLIC KEY"
+        else:
+            log_data = f"DECRYPTED MESSAGE: DATA encrypted with NEXT RELAY'S SESSION KEY"
+
+        logging.info(log_data)
 
         logging.info("Processing data...")
         message = json.loads(message)
@@ -82,7 +105,8 @@ class RelayNode(Node):
         current_circuit = self.circuit_dict[tor_header.circuit_id]
         current_circuit.upstream_port = target_port
         self.circuit_where_upstream_id_equals[inbound_tor_header.circuit_id] = current_circuit
-        logging.info(f"Relaying message to next target port {target_port}")
+        logging.info(f"Relaying message to next target port {target_port}...")
+        logging.info(f"OUTBOUND MESSAGE:\nTor header: {TorHeader(inbound_tor_header.circuit_id, inbound_tor_header.cmd).__dict__}\nData: {log_data}\nSender port: {self.my_port}")
         self.tor_send(
             inbound_tor_header.circuit_id,
             inbound_tor_header.cmd,
@@ -93,31 +117,51 @@ class RelayNode(Node):
     def cr_or_ext(self, tor_header: TorHeader, data: dict):
         logging.info("Received confirmation message of successful circuit build")
         circuit: Circuit = self.circuit_where_upstream_id_equals[tor_header.circuit_id]
-        logging.info("Extracting data and adding encryption layer...")
+        logging.info("Extracting data...")
+        log_data = ""
+
+        # TODO: !!!
+        if type(data) is dict:
+            log_data = "DATA: SESSION KEY"
+        else:
+            log_data = "DATA: DATA encrypted with RELAY SESSION KEY"
+
+        logging.info(log_data)
+        logging.info("Adding encryption layer...")
         message = dict()
         message["data"] = data
         message_json = json.dumps(message)
-        logging.debug(f"message json: {message_json}")
         encrypted_message = encrypt_with_aes(circuit.sk, message_json)
-        logging.info(f"Encrypted message: {encrypted_message}")
 
-        logging.info(f"Forwarding message to port {circuit.downstream_port}")
+        logging.info(f"Forwarding message to port {circuit.downstream_port}...")
+        logging.info(f"OUTBOUND MESSAGE:\nTor header: {TorHeader(circuit.circuit_id, 'EXTENDED').__dict__}\nData: DATA encrypted with RELAY {self.my_id} SESSION KEY\nSender port: {self.my_port}")
         self.tor_send(circuit.circuit_id, "EXTENDED", encrypted_message, circuit.downstream_port)
     
     def relay_forward(self, tor_header: TorHeader, data: str):
-        logging.info("Received relay forward command")
-        logging.info("Peeling 1 layer of encryption")
+        logging.info("Received command to relay forward")
+        logging.info("Peeling 1 layer of encryption...")
         circuit = self.circuit_dict[tor_header.circuit_id]
         message = decrypt_with_aes(circuit.sk, data)
-        logging.info(f"Decrypted message: {message}")
+        log_data = ""
 
-        logging.info("Processing data...")
+        # TODO: !!!
+        if type(message) is dict:
+            log_data = message['data']
+        else:
+            log_data = "DATA encrypted with NEXT RELAY'S SESSION KEY"
+
+        logging.info(f"message: {message}")
+
+        # TODO: !!!
+        logging.info(f"DECRYPTED MESSAGE:\nTor header: {message['tor_header']}\nData: {log_data}\nTarget port: {message['target_port']}\nSender port: {self.my_port}")
+
         message = json.loads(message)
         inbound_tor_header = TorHeader(**message["tor_header"])
         extracted_data = message["data"]
         target_port = message["target_port"]
 
-        logging.info(f"Relaying message to next target port {target_port}")
+        logging.info(f"Relaying message to next target port {target_port}...")
+        logging.info(f"OUTBOUND MESSAGE:\nTor header: {TorHeader(inbound_tor_header.circuit_id, inbound_tor_header.cmd).__dict__}\nData: {log_data}\nSender port: {self.my_port}")
         self.tor_send(
             inbound_tor_header.circuit_id,
             inbound_tor_header.cmd,
@@ -126,21 +170,21 @@ class RelayNode(Node):
         )
     
     def relay_backward(self, tor_header: TorHeader, data: dict):
-        logging.info("Received relay backward command")
+        logging.info("Received command to relay backward")
         if tor_header.circuit_id in self.circuit_where_upstream_id_equals:
             circuit: Circuit = self.circuit_where_upstream_id_equals[tor_header.circuit_id]
         else:
             circuit: Circuit = self.circuit_dict[tor_header.circuit_id-1]
-        logging.info("Extracting data and adding encryption layer...")
+        logging.info("Adding 1 encryption layer...")
         message = dict()
         message["data"] = data
         message_json = json.dumps(message)
-        logging.debug(f"message json: {message_json}")
         encrypted_message = encrypt_with_aes(circuit.sk, message_json)
-        logging.info(f"Encrypted message: {encrypted_message}")
+        logging.info(f"ENCRYPTED MESSAGE\nTor header: {TorHeader(circuit.circuit_id, 'RELAY BACKWARD').__dict__}\nData: DATA encrypted with RELAY {self.my_id} SESSION KEY\nSender port: {self.my_port}")
 
-        logging.info(f"Relaying message to port {circuit.downstream_port}")
-        self.tor_send(circuit.circuit_id, "RELAY_BACKWARD", encrypted_message, circuit.downstream_port)
+        logging.info(f"Relaying message to port {circuit.downstream_port}...")
+        logging.info(f"OUTBOUND MESSAGE\nTor header: {TorHeader(circuit.circuit_id, 'RELAY BACKWARD').__dict__}\nData: DATA encrypted with RELAY {self.my_id} SESSION KEY\nSender port: {self.my_port}")
+        self.tor_send(circuit.circuit_id, "RELAY BACKWARD", encrypted_message, circuit.downstream_port)
 
     def tor_send(self, circuit_id: int, cmd: str, data, target_port: int):
         message = dict()
