@@ -14,9 +14,7 @@ class Node:
 
     def listen_procedure(self) -> str:
         inbound_message, address = self.node_socket.listen()
-        logging.info(f"inbound_message: {inbound_message}")
         return inbound_message
 
     def sending_procedure(self, message, port):
-        logging.info(f"outbound message: {message}\nRecipient port: {port}")
         self.node_socket.send(message, port)
