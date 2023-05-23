@@ -77,17 +77,15 @@ class ClientNode(Node):
     def start(self, circuit_len, message):
 
         self.build_circuit(circuit_len)
-        # TODO Move this?
-        logging.info("Circuit built successfully")
-
-        logging.info("Starting procedure to send request message")
         self.send_request(message)
 
         logging.info("Listening for response...")
         inbound_message_json = self.listen_procedure()
         inbound_message = json.loads(inbound_message_json)
         data = inbound_message["data"]
+        gui_event_start("Client: Receive server response")
         logging.info(f"\nINBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: DATA encrypted with RELAY {self.random_node_id_list[0]} SESSION KEY\nSender port: {inbound_message['sender_port']}")
+        gui_event_stop(next_node="Client")
         self.handle_response(data)
 
         # Start the client gui
@@ -102,6 +100,7 @@ class ClientNode(Node):
     def organize_event_for_simulation(self):
         # TODO: Build the self.event_dict first
         # Store necessary logs into memory
+        # don't forget to add server logs
         unread_logs_dict = dict()
         with open("logs/Client.txt", "r") as client_log:
             unread_logs_dict["Client"] = [line.rstrip('\n') for line in client_log.readlines()]
@@ -159,7 +158,7 @@ class ClientNode(Node):
         for relay_id in circuit_dict.keys():
             route_str += f"Relay {relay_id} -- "
         logging.info(f"Route: Client -- {route_str}Server")
-        logging.info(f"\n{self.random_node_id_list}")
+        logging.debug(f"\n{self.random_node_id_list}")
         gui_event_stop(next_node="Client")
 
         random_node_ports = list(circuit_dict.values())
@@ -208,27 +207,29 @@ class ClientNode(Node):
             outbound_message = json.dumps(message)
             self.sending_procedure(outbound_message, random_node_ports[0])
             gui_event_stop(next_node=f"Relay {self.random_node_id_list[0]}")
-
+            
             # Receive
             logging.info("Listening for reply...")
             inbound_message_json = self.listen_procedure()
             inbound_message = json.loads(inbound_message_json)
             data = inbound_message["data"]
+            gui_event_start(f"Client: Receiving session key response from Relay {self.random_node_id_list[i]}")
             log_data = ""
             if (len(self.circuit_list) == 0):
                 log_data += f"DATA encrypted with CLIENT PUBLIC KEY"
             else:
                 log_data += f"DATA encrypted with RELAY {self.random_node_id_list[0]} SESSION KEY"
             logging.info(f"\nINBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: {log_data}\nSender port: {message['sender_port']}")
-
+            gui_event_stop(next_node="Client")
+            gui_event_start(f"Client: Decrypting & storing session key from Relay {self.random_node_id_list[i]}")
             layer = 0
             for each_circuit in self.circuit_list:
                 logging.info(f"Peeling encryption layer using RELAY {self.random_node_id_list[layer]} SESSION KEY...")
                 decrypted_data = decrypt_with_aes(each_circuit.sk, data)
                 if layer < len(self.circuit_list) - 1:
-                    logging.debug(f"DECRYPTED DATA: DATA encrypted with RELAY {self.random_node_id_list[layer+1]} SESSION KEY")
+                    logging.info(f"DECRYPTED DATA: DATA encrypted with RELAY {self.random_node_id_list[layer+1]} SESSION KEY")
                 else:
-                    logging.debug(f"DECRYPTED DATA: DATA encrypted with CLIENT PUBLIC KEY")
+                    logging.info(f"DECRYPTED DATA: DATA encrypted with CLIENT PUBLIC KEY")
                 data = json.loads(decrypted_data)["data"]
                 layer += 1
 
@@ -239,21 +240,29 @@ class ClientNode(Node):
             new_circuit.upstream_port = random_node_ports[i]
             self.circuit_list.append(new_circuit)
 
-            logging.debug(f"CIRCUIT STORED:")
+            logging.info(f"CIRCUIT STORED:")
             debugstr = ""
             for circuit in self.circuit_list:
                 debugstr += f"{str(circuit)}, upstream_port: {circuit.upstream_port}\n"
-            logging.debug(f"\n{debugstr}")
+            logging.info(f"\n{debugstr}")
+            if i < len(random_node_ports) - 1:
+                gui_event_stop(next_node="Client")
+        logging.info("Circuit built successfully")
+        gui_event_stop(next_node="Client")
 
     def send_request(self, request_msg: str):
 
-        #Encrypt message
+        gui_event_start(f"Client: Creating request message to send")
+        logging.info("Starting procedure to send request message...")
         logging.info("Creating data...")
         message = dict()
         message["tor_header"] = TorHeader(len(self.circuit_list), "RELAY FORWARD").__dict__
         message["data"] = {"message": request_msg}
         message["target_port"] = 9999
         logging.info(f"\nDATA:\nTor header: {message['tor_header']}\nData: {message['data']}\nTarget port: {message['target_port']}")
+        gui_event_stop(next_node="Client")
+
+        gui_event_start(f"Client: Applying layered encryption to request message")
         logging.info("Start encrypting message...")
         for circuit in self.circuit_list[::-1]:
             logging.info(f"Encrypting message with session key from RELAY {self.random_node_id_list[self.circuit_list.index(circuit)]} SESSION KEY")
@@ -263,15 +272,19 @@ class ClientNode(Node):
             message["data"] = encrypted_message
             message["target_port"] = circuit.upstream_port
             logging.info(f"\nENCRYPTED MESSAGE:\nTor header: {message['tor_header']}\nData: DATA encrypted with RELAY {self.random_node_id_list[self.circuit_list.index(circuit)]} SESSION KEY\nTarget port: {message['target_port']}")
+        gui_event_stop(next_node="Client")
 
+        gui_event_start(f"Client: Sending request message")
         #Sending message
         logging.info("Sending message...")
         message["sender_port"] = self.my_port
         logging.info(f"\nOUTBOUND MESSAGE:\nTor header: {message['tor_header']}\nData: DATA encrypted with RELAY {self.random_node_id_list[self.circuit_list.index(circuit)]} SESSION KEY\nTarget port: {message['target_port']}\nSender port: {message['sender_port']}")
         outbound_message = json.dumps(message)
         self.sending_procedure(outbound_message, self.circuit_list[0].upstream_port)
+        gui_event_stop(next_node=f"Relay {self.random_node_id_list[0]}")
 
     def handle_response(self, response: str):
+        gui_event_start(f"Client: Decrypting response message")
         logging.info("Start peeling encryption layers...")
         layer = 0
         for each_circuit in self.circuit_list:
@@ -282,9 +295,10 @@ class ClientNode(Node):
                 log_data += f"DATA encrypted with RELAY {self.random_node_id_list[layer+1]} SESSION KEY"
             else:
                 log_data += str(json.loads(decrypted_data)["data"])
-            logging.debug(f"DECRYPTED DATA: {log_data}")
+            logging.info(f"DECRYPTED DATA: {log_data}")
             response = json.loads(decrypted_data)["data"]
             layer += 1
+        gui_event_stop(next_node=f"")
 
 def thread_exception_handler(args):
     logging.error(f"Uncaught exception", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
