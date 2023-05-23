@@ -16,14 +16,14 @@ class ServerNode(Node):
         inbound_message = json.loads(inbound_message_json)
         header = TorHeader(**inbound_message["tor_header"])
         data = inbound_message["data"]
-        logging.info(f"INBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: {inbound_message['data']}\n Sender port: {inbound_message['sender_port']}")
+        logging.info(f"\nINBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: {inbound_message['data']}\nSender port: {inbound_message['sender_port']}")
         self.send_response(header, data["message"], inbound_message["sender_port"])
     
     def send_response(self, tor_header: TorHeader, request_message: str, sender_port: int):
         response_message = request_message + " accepted"
         logging.info(f"Sending response message to port {sender_port}...")
         outbound_data = {"message": response_message}
-        logging.info(f"OUTBOUND MESSAGE:\nTor header: {TorHeader(tor_header.circuit_id, 'RELAY BACKWARD').__dict__}\nData: {outbound_data}\n Sender port: {self.my_port}")
+        logging.info(f"\nOUTBOUND MESSAGE:\nTor header: {TorHeader(tor_header.circuit_id, 'RELAY BACKWARD').__dict__}\nData: {outbound_data}\nSender port: {self.my_port}")
         self.tor_send(tor_header.circuit_id, "RELAY BACKWARD", outbound_data, sender_port)
     
     def tor_send(self, circuit_id: int, cmd: str, data, target_port: int):

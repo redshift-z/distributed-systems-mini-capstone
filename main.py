@@ -45,21 +45,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     logger.error(f"Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 def main():
-    # parser = ArgumentParser()
-    # parser.add_argument("-N", type=str, dest="node_number",
-    #                     help=" ")
-    # Relay number akan diset di client.py
-    # parser.add_argument("-R", type=str, dest="relay_number",
-    #                     help=" ")
-    # Mungkin server response hardcoded aja
-    # parser.add_argument("-S", type=str, dest="server_response",
-    #                     help=" ")
-    # args = parser.parse_args()
-
-    # logger.info("Processing args...")
-    # node_number: int = int(args.node_number)
-    # logger.info("Done processing args...")
-    node_number = int(input("Node_number: "))
+    node_number = int(input("Enter number of nodes available for relay (positive integer only): "))
     execution(node_number)
 
 
