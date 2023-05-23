@@ -2,7 +2,6 @@ import logging
 import multiprocessing
 import sys
 from pprint import pformat
-from argparse import ArgumentParser
 from os import makedirs
 import threading
 import tkinter as tk
@@ -14,7 +13,7 @@ import relay_node
 import client
 
 basic_logging = logging.INFO
-node_logging = logging.DEBUG
+client_logging = logging.INFO
 list_nodes = []
 client_port = 9998
 server_port = 9999
@@ -41,7 +40,7 @@ def reload_logging_config_node(filename):
                         datefmt='%H:%M:%S',
                         filename=f"logs/{filename}",
                         filemode='w',
-                        level=node_logging)
+                        level=client_logging)
 
 def handle_exception(exc_type, exc_value, exc_traceback):
     logger.error(f"Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
@@ -76,11 +75,13 @@ def main():
 
     def start_button_pressed():
         submitted_node_number = int(node_number_var.get())
+        submitted_circuit_length = int(node_number_in_relay_var.get())
+        submitted_message = message_to_send_var.get()
         sim_start_button.destroy()
         for each_var in (node_number_input, node_number_in_relay_input, message_to_send_input):
             each_var.config(state="disabled")
-        tk.Label(gui_window, text="Simulasi dijalankan!").pack()
-        execution(submitted_node_number, gui_window)
+        tk.Label(gui_window, text="Simulation executed, please wait...").pack()
+        execution(submitted_node_number, submitted_circuit_length, submitted_message, gui_window)
 
     # Build the gui window
     gui_window = tk.Tk()
@@ -113,13 +114,13 @@ def main():
     message_to_send_input.pack(fill="x", padx="10")
 
     # Start button
-    sim_start_button = tk.Button(gui_window, text="Mulai simulasi!", command=start_button_pressed, state="disabled")
+    sim_start_button = tk.Button(gui_window, text="Start simulation", command=start_button_pressed, state="disabled")
     sim_start_button.pack(pady=10)
 
     gui_window.mainloop()
 
 
-def execution(node_number, main_gui):
+def execution(node_number, circuit_length, message, main_gui):
     logger = logging.getLogger(__name__)
     sys.excepthook = handle_exception
     makedirs("logs", exist_ok=True)
@@ -163,11 +164,12 @@ def execution(node_number, main_gui):
     logger.info("Launching client...")
     logger.info(f"Creating client instance at port {client_port}...")
     reload_logging_config_node(f"Client.txt")
-    # Bisa diganti ke NodeProcess jika diperlukan. Untuk sekarang menggunakan threading agar bisa menggunakan input()
     thread = threading.Thread(target=client.main, name="Client", daemon=True, args=(
         client_port,
         node_and_port_dict,
-        main_gui
+        main_gui,
+        circuit_length,
+        message
     ))
     thread.start()
 
