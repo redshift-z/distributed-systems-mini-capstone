@@ -35,11 +35,14 @@ class ClientNode(Node):
         label2.pack(side="top")
         frame8 = tk.Frame(frame6)
         frame8.configure(height=200)
-        self.event_history_list = tk.Listbox(frame8)
+        self.event_history_listbox = tk.Listbox(frame8)
         self.event_history_listvar = tk.StringVar()
-        self.event_history_list.configure(
-            listvariable=self.event_history_listvar, width=35)
-        self.event_history_list.pack(fill="y", side="left")
+        self.event_history_listbox.configure(
+            activestyle="none",
+            listvariable=self.event_history_listvar,
+            selectmode="single",
+            width=35)
+        self.event_history_listbox.pack(fill="y", side="left")
         self.event_history_scrollbar = tk.Scrollbar(frame8)
         self.event_history_scrollbar.configure(orient="vertical")
         self.event_history_scrollbar.pack(fill="y", side="left")
@@ -55,10 +58,10 @@ class ClientNode(Node):
         self.event_detail = tk.Text(frame2)
         self.event_detail.configure(
             height=10, state="disabled", width=63, wrap="word")
-        _text_ = 'Mungkin disini potongan log?\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas egestas augue vel est gravida aliquam. Curabitur laoreet mattis leo. Duis quis nisi pretium, tincidunt ex id, egestas nulla. Vivamus sagittis malesuada purus congue consequat. Nullam hendrerit sapien condimentum magna congue condimentum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Phasellus a augue vel nunc finibus tincidunt. Morbi ullamcorper eros quis congue consequat. Maecenas eu sem eu odio varius porta. Fusce non hendrerit enim. Suspendisse diam justo, ornare in est vel, ultricies imperdiet neque. Phasellus in gravida elit. Sed cursus nisi quis tellus dapibus iaculis at id leo.'
-        self.event_detail.configure(state="normal")
-        self.event_detail.insert("0.0", _text_)
-        self.event_detail.configure(state="disabled")
+        # _text_ = 'Mungkin disini potongan log?\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi a interdum eros. Phasellus non nisl ultricies, tempus lorem ac, finibus lectus. Vestibulum eget tellus fermentum, posuere magna et, tempor libero. Sed metus ante, dignissim et mi commodo, commodo mattis tortor. Nam suscipit ante in metus consectetur scelerisque. Praesent laoreet cursus tincidunt. Morbi vehicula suscipit eros at consectetur. Aliquam magna purus, facilisis vel feugiat ultricies, ultrices id est. Praesent ante justo, congue sit amet tempor id, accumsan nec erat. Ut et nibh risus. Sed vitae efficitur diam. Sed eu porta diam. Nunc dictum consequat magna, ut auctor neque imperdiet ut. Cras interdum enim augue, at mattis tellus laoreet a. Integer gravida magna eu mi venenatis, eu dictum elit placerat. Donec et finibus neque. Nullam mollis, risus sit amet maximus dictum, magna augue vestibulum metus, id pretium felis massa et dolor. In maximus justo orci, eu interdum odio viverra vitae. Nunc eu blandit justo, quis egestas urna. Etiam dapibus ligula nulla, nec efficitur tortor bibendum sagittis. Donec a massa sed arcu mollis fringilla. Nulla quam quam, tristique nec molestie quis, cursus eget risus. Nullam lorem sapien, egestas eu volutpat in, eleifend eu ante. Aliquam ultricies ornare convallis. Duis dui felis, pulvinar egestas ligula eu, dapibus pretium elit. Donec pretium a velit quis ultrices. Proin pretium eu turpis eu congue. Nulla nec luctus nisi. Duis tempor tincidunt lorem, ac ultrices nunc rutrum vel.'
+        # self.event_detail.configure(state="normal")
+        # self.event_detail.insert("0.0", _text_)
+        # self.event_detail.configure(state="disabled")
         self.event_detail.pack(fill="y", side="left")
         self.event_detail_scrollbar = tk.Scrollbar(frame2)
         self.event_detail_scrollbar.configure(orient="vertical")
@@ -74,31 +77,44 @@ class ClientNode(Node):
         self.next_step.pack(side="top")
         frame7.pack(anchor="e", padx=20, pady=10, side="top")
 
-    def start(self, circuit_len, message):
+        # Configure gui
+        # History listbox
+        self.event_history_listbox.configure(yscrollcommand=self.event_history_scrollbar.set)
+        self.event_history_scrollbar.configure(command=self.event_history_listbox.yview)
+        self.event_history_listbox.bind("<<ListboxSelect>>", self.on_event_listbox_select)
 
-        self.build_circuit(circuit_len)
-        self.send_request(message)
+        # Event detail
+        self.event_detail.configure(yscrollcommand=self.event_detail_scrollbar.set)
+        self.event_detail_scrollbar.configure(command=self.event_detail.yview)
 
-        logging.info("Listening for response...")
-        inbound_message_json = self.listen_procedure()
-        inbound_message = json.loads(inbound_message_json)
-        data = inbound_message["data"]
-        gui_event_start("Client: Receive server response")
-        logging.info(f"\nINBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: DATA encrypted with RELAY {self.random_node_id_list[0]} SESSION KEY\nSender port: {inbound_message['sender_port']}")
-        gui_event_stop(next_node="Client")
-        self.handle_response(data)
+        # Next step button
+        self.next_step.configure(command=self.gui_insert_next_step)
 
-        # Start the client gui
-        self.organize_event_for_simulation()
-        # TODO get self.event_dict to show in gui
-        for event_name, event_log in self.event_list:
-            print(event_name)
-            print(event_log)
-            print()
-        self.client_gui.mainloop()
+    def on_event_listbox_select(self, event):
+        selected_index = self.event_history_listbox.curselection()[0]
+        selected_event_name, selected_event_detail = self.event_list[selected_index]
+        self.event_name.configure(text=selected_event_name)
+        self.event_detail.configure(state="normal")
+        self.event_detail.delete(1.0, tk.END)
+        self.event_detail.insert(tk.END, selected_event_detail)
+        self.event_detail.configure(state="disabled")
+
+    def select_listbox_item(self, index):
+        self.event_history_listbox.selection_clear(0, "end")
+        self.event_history_listbox.selection_set(index)
+        self.on_event_listbox_select(None)
+
+    def gui_insert_next_step(self):
+        next_index = self.event_history_listbox.size()
+        self.event_history_listbox.insert("end", self.event_list[next_index][0])
+        self.event_history_listbox.see(next_index)
+        self.select_listbox_item(next_index)
+
+        # Disable next step button if the last event is reached
+        if self.event_history_listbox.size() == len(self.event_list):
+            self.next_step.configure(state="disabled")
 
     def organize_event_for_simulation(self):
-        # TODO: Build the self.event_dict first
         # Store necessary logs into memory
         # don't forget to add server logs
         unread_logs_dict = dict()
@@ -141,10 +157,33 @@ class ClientNode(Node):
             next_node = gui_event_get_next(unread_logs_dict[current_node_log][stop_line + 2])
 
             # Remove processed logs
-            # unread_logs_dict[current_node_log] = unread_logs_dict[current_node_log][:stop_line + 2]
             del unread_logs_dict[current_node_log][:stop_line + 3]
 
             current_node_log = next_node
+
+    def start(self, circuit_len, message):
+
+        self.build_circuit(circuit_len)
+        self.send_request(message)
+
+        logging.info("Listening for response...")
+        inbound_message_json = self.listen_procedure()
+        inbound_message = json.loads(inbound_message_json)
+        data = inbound_message["data"]
+        gui_event_start("Client: Receive server response")
+        logging.info(f"\nINBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: DATA encrypted with RELAY {self.random_node_id_list[0]} SESSION KEY\nSender port: {inbound_message['sender_port']}")
+        gui_event_stop(next_node="Client")
+        self.handle_response(data)
+
+        # Start the client gui
+        self.organize_event_for_simulation()
+        # TODO get self.event_dict to show in gui
+        # for event_name, event_log in self.event_list:
+        #     print(event_name)
+        #     print(event_log)
+        #     print()
+        self.gui_insert_next_step()
+        self.client_gui.mainloop()
 
     def build_circuit(self, circuit_len: int):
         gui_event_start("Client: Choosing circuit route")
