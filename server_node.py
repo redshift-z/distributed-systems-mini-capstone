@@ -4,6 +4,7 @@ import threading
 from data.header import TorHeader
 from pprint import pformat
 from node import Node
+from data.gui_logging_tools import *
 
 class ServerNode(Node):
 
@@ -12,18 +13,23 @@ class ServerNode(Node):
 
     def start(self):
         logging.info("Listening for request...")
+        gui_event_start(f"Server: Receive request message")
         inbound_message_json = self.listen_procedure()
         inbound_message = json.loads(inbound_message_json)
         header = TorHeader(**inbound_message["tor_header"])
         data = inbound_message["data"]
-        logging.info(f"Request: {pformat(data)}")
+        logging.info(f"\nINBOUND MESSAGE:\nTor header: {inbound_message['tor_header']}\nData: {inbound_message['data']}\nSender port: {inbound_message['sender_port']}")
+        gui_event_stop(next_node="Server")
         self.send_response(header, data["message"], inbound_message["sender_port"])
     
     def send_response(self, tor_header: TorHeader, request_message: str, sender_port: int):
+        gui_event_start(f"Server: Send response message")
         response_message = request_message + " accepted"
         logging.info(f"Sending response message to port {sender_port}...")
         outbound_data = {"message": response_message}
-        self.tor_send(tor_header.circuit_id, "RELAY_BACKWARD", outbound_data, sender_port)
+        logging.info(f"\nOUTBOUND MESSAGE:\nTor header: {TorHeader(tor_header.circuit_id, 'RELAY BACKWARD').__dict__}\nData: {outbound_data}\nSender port: {self.my_port}")
+        self.tor_send(tor_header.circuit_id, "RELAY BACKWARD", outbound_data, sender_port)
+        gui_event_stop(next_node=f"{gui_event_get_node_name_from_port(sender_port)}")
     
     def tor_send(self, circuit_id: int, cmd: str, data, target_port: int):
         message = dict()
