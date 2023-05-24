@@ -91,7 +91,10 @@ class ClientNode(Node):
         self.next_step.configure(command=self.gui_insert_next_step)
 
     def on_event_listbox_select(self, event):
-        selected_index = self.event_history_listbox.curselection()[0]
+        try:
+            selected_index = self.event_history_listbox.curselection()[0]
+        except:
+            return
         selected_event_name, selected_event_detail = self.event_list[selected_index]
         self.event_name.configure(text=selected_event_name)
         self.event_detail.configure(state="normal")
@@ -116,7 +119,7 @@ class ClientNode(Node):
 
     def organize_event_for_simulation(self):
         # Store necessary logs into memory
-        # don't forget to add server logs
+        # TODO: don't forget to add server logs
         unread_logs_dict = dict()
         with open("logs/Client.txt", "r") as client_log:
             unread_logs_dict["Client"] = [line.rstrip('\n') for line in client_log.readlines()]
@@ -127,6 +130,8 @@ class ClientNode(Node):
         for each_node_id in active_relay_node_id_list:
             with open(f"logs/Relay {each_node_id}.txt", "r") as relay_log:
                 unread_logs_dict[f"Relay {each_node_id}"] = [line.rstrip('\n') for line in relay_log.readlines()]
+        with open("logs/Server.txt", "r") as server_log:
+            unread_logs_dict["Server"] = [line.rstrip('\n') for line in server_log.readlines()]
 
         # Start at client
         current_node_log = "Client"
@@ -197,7 +202,7 @@ class ClientNode(Node):
         for relay_id in circuit_dict.keys():
             route_str += f"Relay {relay_id} -- "
         logging.info(f"Route: Client -- {route_str}Server")
-        logging.debug(f"\n{self.random_node_id_list}")
+        logging.info(f"\n{self.random_node_id_list}")
         gui_event_stop(next_node="Client")
 
         random_node_ports = list(circuit_dict.values())
@@ -246,7 +251,7 @@ class ClientNode(Node):
             outbound_message = json.dumps(message)
             self.sending_procedure(outbound_message, random_node_ports[0])
             gui_event_stop(next_node=f"Relay {self.random_node_id_list[0]}")
-            
+
             # Receive
             logging.info("Listening for reply...")
             inbound_message_json = self.listen_procedure()
@@ -337,7 +342,7 @@ class ClientNode(Node):
             logging.info(f"DECRYPTED DATA: {log_data}")
             response = json.loads(decrypted_data)["data"]
             layer += 1
-        gui_event_stop(next_node=f"")
+        gui_event_stop(next_node=f"Client")
 
 def thread_exception_handler(args):
     logging.error(f"Uncaught exception", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
