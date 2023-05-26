@@ -277,7 +277,7 @@ class ClientNode(Node):
                 data = json.loads(decrypted_data)["data"]
                 layer += 1
 
-            logging.info("Decrypting session key using CLIENT PUBLIC KEY...")
+            logging.info("Decrypting session key using CLIENT PRIVATE KEY...")
             sk = decrypt_with_rsa(private_key, data["sk"])
             logging.info(f"Storing received session key for port {random_node_ports[i]}...")
             new_circuit = Circuit(i, sk)
